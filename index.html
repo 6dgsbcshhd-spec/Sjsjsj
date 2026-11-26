@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Подарок</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0a; color: #e0e0e0; font-family: 'Courier New', monospace; overflow: hidden; height: 100vh; width: 100vw; }
+
+  #scene-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+  #start-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 100; cursor: pointer; transition: opacity 1s;
+  }
+  #start-overlay h1 { font-size: 2rem; color: #ff6b9d; margin-bottom: 1rem; text-shadow: 0 0 20px rgba(255,107,157,0.6); }
+  #start-overlay p { color: #888; font-size: 0.9rem; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
+
+  #sheet-container {
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    width: 340px; max-width: 90vw;
+    background: #f5f0e8; color: #1a1a1a;
+    padding: 24px 28px; border-radius: 2px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.1);
+    z-index: 50; opacity: 0; pointer-events: none;
+    transition: opacity 0.5s, transform 0.5s;
+    font-family: 'Georgia', serif; line-height: 1.7; font-size: 1rem; min-height: 200px;
+  }
+  #sheet-container.visible { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  #sheet-container .typed-text { white-space: pre-wrap; }
+  #sheet-container .cursor {
+    display: inline-block; width: 2px; height: 1.1em; background: #1a1a1a;
+    vertical-align: text-bottom; animation: blink 0.8s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  #scream-overlay {
+    position: fixed; inset: 0; background: #000;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.05s;
+  }
+  #scream-overlay.active { opacity: 1; pointer-events: auto; }
+  #scream-overlay img { width: 100%; height: 100%; object-fit: cover; animation: shake 0.08s infinite; }
+  @keyframes shake {
+    0% { transform: translate(0,0) scale(1); }
+    25% { transform: translate(-8px,4px) scale(1.05); }
+    50% { transform: translate(6px,-6px) scale(1.02); }
+    75% { transform: translate(-4px,8px) scale(1.04); }
+    100% { transform: translate(2px,-2px) scale(1.01); }
+  }
+
+  #terminal-container {
+    position: fixed; inset: 0; background: #0c0c0c; z-index: 300;
+    display: none; padding: 20px; overflow: hidden;
+    font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; color: #00ff41;
+  }
+  #terminal-container.active { display: block; }
+  #terminal-output { white-space: pre-wrap; word-break: break-all; max-height: 100%; overflow: hidden; }
+  .error-line { color: #ff3333; }
+  .error-line .ts { color: #666; }
+  .warn-line { color: #ffaa00; }
+
+  #drawing-container {
+    position: fixed; inset: 0; background: #0c0c0c; z-index: 350;
+    display: none; align-items: center; justify-content: center;
+  }
+  #drawing-container.active { display: flex; }
+  #drawing-container pre {
+    color: #00ff41; font-size: clamp(6px, 1.2vw, 12px); line-height: 1.1;
+    text-shadow: 0 0 10px rgba(0,255,65,0.5); animation: glitch 0.3s infinite;
+  }
+  @keyframes glitch {
+    0%,100% { transform: translate(0); }
+    20% { transform: translate(-2px,1px); }
+    40% { transform: translate(2px,-1px); }
+    60% { transform: translate(-1px,-2px); }
+    80% { transform: translate(1px,2px); }
+  }
+
+  #eye-overlay {
+    position: fixed; inset: 0; background: #000; z-index: 400;
+    display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  }
+  #eye-overlay.active { display: flex; }
+  #eye-overlay .eye-icon { font-size: clamp(80px, 20vw, 200px); animation: eyePulse 1s infinite; filter: drop-shadow(0 0 40px rgba(255,0,0,0.8)); }
+  @keyframes eyePulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+  #eye-overlay .eye-text {
+    color: #ff0000; font-size: clamp(1.5rem, 5vw, 3rem);
+    font-family: 'Courier New', monospace; letter-spacing: 0.3em;
+    margin-top: 2rem; text-transform: uppercase; animation: glitch 0.2s infinite;
+  }
+
+  #locker-overlay {
+    position: fixed; inset: 0; background: #8b0000; z-index: 500;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 2rem;
+  }
+  #locker-overlay.active { display: flex; }
+  #locker-overlay .lock-icon { font-size: 5rem; margin-bottom: 1.5rem; animation: lockShake 0.5s infinite; }
+  @keyframes lockShake { 0%,100% { transform: rotate(0deg); } 25% { transform: rotate(-8deg); } 75% { transform: rotate(8deg); } }
+  #locker-overlay .lock-title {
+    color: #fff; font-size: clamp(1.8rem, 6vw, 3.5rem); font-weight: 900;
+    letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 1.5rem;
+    text-shadow: 0 0 30px rgba(255,255,255,0.5), 3px 3px 0 #000; animation: glitch 0.15s infinite;
+  }
+  #locker-overlay .lock-body {
+    color: #ffcccc; font-size: clamp(0.95rem, 2.5vw, 1.3rem);
+    max-width: 700px; line-height: 1.8; font-family: 'Courier New', monospace;
+  }
+  #locker-overlay .lock-body .heart { color: #ff6666; font-size: 1.5em; }
+  #locker-overlay .lock-sub { margin-top: 2rem; color: #ff9999; font-size: 0.85rem; opacity: 0.7; font-family: 'Courier New', monospace; }
+</style>
+</head>
+<body>
+
+<div id="scene-container"></div>
+
+<div id="start-overlay">
+  <h1>🎁</h1>
+  <p>нажми, чтобы открыть</p>
+</div>
+
+<div id="sheet-container">
+  <div class="typed-text" id="typed-text"></div>
+</div>
+
+<div id="scream-overlay">
+  <canvas id="scream-canvas" width="800" height="600"></canvas>
+</div>
+
+<div id="terminal-container">
+  <div id="terminal-output"></div>
+</div>
+
+<div id="drawing-container">
+  <pre id="ascii-art"></pre>
+</div>
+
+<div id="eye-overlay">
+  <div class="eye-icon">👁️</div>
+  <div class="eye-text">вас заметили</div>
+</div>
+
+<div id="locker-overlay">
+  <div class="lock-icon">🔒</div>
+  <div class="lock-title">ВЗЛОМ</div>
+  <div class="lock-body">
+    Друг, тебе не стоило переходить по этой ссылке.<br><br>
+    За это все твои данные у меня.<br>
+    И они сольются в интернет.<br><br>
+    А также много других данных.<br><br>
+    <span class="heart">Удачи ❤️❤️</span>
+  </div>
+  <div class="lock-sub">// соединение установлено // передача данных...</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ============================================================
+   SPECTRAL PRANK — с твоим треком
+   Ссылка на музыку вставлена ниже в TRACK_URL.
+   ============================================================ */
+
+const TRACK_URL = 'https://storage9.lightaudio.ru/dm/39923418/3a6585d7/mazellov%20%E2%80%94%20%D0%93%D0%B8%D0%BC%D0%BD%20%D1%82%D0%B2%D0%B8%D1%87%D0%B0.mp3?d=69&v=c29cd4bb1d';
+
+// ---------- AUDIO ----------
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+let phonkAudio = null;
+
+function initAudio() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+// Готовим трек заранее, чтобы браузер не заблокировал play() позже
+function preparePhonk() {
+  phonkAudio = new Audio(TRACK_URL);
+  phonkAudio.loop = true;
+  phonkAudio.preload = 'auto';
+  phonkAudio.volume = 0;
+
+  // «Разбудить» аудио на первом клике: play + pause без звука
+  const p = phonkAudio.play();
+  if (p !== undefined) {
+    p.then(() => {
+      phonkAudio.pause();
+      phonkAudio.currentTime = 0;
+      phonkAudio.volume = 0.85;
+    }).catch(() => {
+      // Если браузер не дал — попробуем ещё раз на красном экране
+      phonkAudio.volume = 0.85;
+    });
+  }
+}
+
+function playScreamSound() {
+  initAudio();
+  const ctx = audioCtx;
+  const now = ctx.currentTime;
+
+  const bufferSize = ctx.sampleRate * 1.5;
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 0.5);
+  }
+  const noise = ctx.createBufferSource();
+  noise.buffer = buffer;
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.8, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 1.2);
+
+  const noiseFilter = ctx.createBiquadFilter();
+  noiseFilter.type = 'bandpass';
+  noiseFilter.frequency.value = 1200;
+  noiseFilter.Q.value = 0.5;
+
+  noise.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(ctx.destination);
+  noise.start(now);
+
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(3000, now);
+  osc.frequency.exponentialRampToValueAtTime(600, now + 1.0);
+
+  const oscGain = ctx.createGain();
+  oscGain.gain.setValueAtTime(0.3, now);
+  oscGain.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
+
+  osc.connect(oscGain);
+  oscGain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 1.5);
+}
+
+// ---------- THREE.JS ----------
+let scene, camera, renderer, boxGroup, lidGroup;
+let animState = { lidOpen: 0, targetLid: 0 };
+const BOX_SIZE = 1.2;
+
+function initThree() {
+  const container = document.getElementById('scene-container');
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0a0a);
+
+  camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(3, 2.5, 4);
+  camera.lookAt(0, 0.5, 0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  container.appendChild(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  keyLight.position.set(5, 8, 5);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.width = 1024;
+  keyLight.shadow.mapSize.height = 1024;
+  scene.add(keyLight);
+
+  const fillLight = new THREE.PointLight(0xff6b9d, 0.6, 15);
+  fillLight.position.set(-3, 2, 3);
+  scene.add(fillLight);
+
+  const rimLight = new THREE.PointLight(0x9d6bff, 0.4, 15);
+  rimLight.position.set(2, 1, -4);
+  scene.add(rimLight);
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(20, 20),
+    new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -0.01;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  boxGroup = new THREE.Group();
+  scene.add(boxGroup);
+
+  const boxColor = 0xc41e3a;
+  const ribbonColor = 0xffd700;
+
+  const bodyMat = new THREE.MeshStandardMaterial({ color: boxColor, roughness: 0.5, metalness: 0.1 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(BOX_SIZE, BOX_SIZE, BOX_SIZE), bodyMat);
+  body.castShadow = true;
+  body.receiveShadow = true;
+  body.position.y = BOX_SIZE / 2;
+  boxGroup.add(body);
+
+  const ribbonMat = new THREE.MeshStandardMaterial({ color: ribbonColor, roughness: 0.3, metalness: 0.4, emissive: 0x443300 });
+  const ribbonH1 = new THREE.Mesh(new THREE.BoxGeometry(BOX_SIZE + 0.02, 0.1, 0.1), ribbonMat);
+  ribbonH1.position.set(0, BOX_SIZE / 2, 0);
+  body.add(ribbonH1);
+  const ribbonV1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, BOX_SIZE + 0.02), ribbonMat);
+  ribbonV1.position.set(0, BOX_SIZE / 2, 0);
+  body.add(ribbonV1);
+
+  lidGroup = new THREE.Group();
+  lidGroup.position.y = BOX_SIZE;
+  boxGroup.add(lidGroup);
+
+  const lidMat = new THREE.MeshStandardMaterial({ color: boxColor, roughness: 0.5, metalness: 0.1 });
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(BOX_SIZE + 0.06, 0.12, BOX_SIZE + 0.06), lidMat);
+  lid.castShadow = true;
+  lid.position.y = 0.06;
+  lidGroup.add(lid);
+
+  const ribbonL1 = new THREE.Mesh(new THREE.BoxGeometry(BOX_SIZE + 0.08, 0.1, 0.1), ribbonMat);
+  ribbonL1.position.set(0, 0.1, 0);
+  lidGroup.add(ribbonL1);
+  const ribbonL2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, BOX_SIZE + 0.08), ribbonMat);
+  ribbonL2.position.set(0, 0.1, 0);
+  lidGroup.add(ribbonL2);
+
+  const bowMat = new THREE.MeshStandardMaterial({ color: ribbonColor, roughness: 0.2, metalness: 0.5 });
+  const bow1 = new THREE.Mesh(new THREE.TorusKnotGeometry(0.15, 0.04, 64, 8), bowMat);
+  bow1.position.set(-0.12, 0.22, 0);
+  bow1.rotation.z = 0.5;
+  lidGroup.add(bow1);
+  const bow2 = new THREE.Mesh(new THREE.TorusKnotGeometry(0.15, 0.04, 64, 8), bowMat);
+  bow2.position.set(0.12, 0.22, 0);
+  bow2.rotation.z = -0.5;
+  lidGroup.add(bow2);
+
+  // Надпись на коробке
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#c41e3a';
+  ctx.fillRect(0, 0, 512, 512);
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 80px Georgia, serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Лиза', 256, 180);
+  ctx.font = 'italic 36px Georgia, serif';
+  ctx.fillStyle = '#ffe8a0';
+  ctx.fillText('я давно хотел', 256, 300);
+  ctx.fillText('тебе признаться...', 256, 350);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const label = new THREE.Mesh(
+    new THREE.PlaneGeometry(BOX_SIZE * 0.9, BOX_SIZE * 0.9),
+    new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6 })
+  );
+  label.position.set(0, BOX_SIZE / 2, BOX_SIZE / 2 + 0.001);
+  boxGroup.add(label);
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  animate();
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  animState.lidOpen += (animState.targetLid - animState.lidOpen) * 0.08;
+  if (lidGroup) {
+    lidGroup.rotation.x = -animState.lidOpen * 0.8;
+    lidGroup.position.y = BOX_SIZE + animState.lidOpen * 0.6;
+    lidGroup.position.z = animState.lidOpen * 0.3;
+  }
+  if (boxGroup) boxGroup.rotation.y += 0.003;
+
+  renderer.render(scene, camera);
+}
+
+// ---------- TYPEWRITER ----------
+function typeText(element, text, speed, onDone) {
+  let i = 0;
+  element.innerHTML = '';
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  element.appendChild(cursor);
+
+  function type() {
+    if (i < text.length) {
+      const char = text.charAt(i);
+      if (char === '\n') {
+        element.insertBefore(document.createElement('br'), cursor);
+      } else {
+        element.insertBefore(document.createTextNode(char), cursor);
+      }
+      i++;
+      setTimeout(type, speed + Math.random() * speed * 0.6);
+    } else {
+      cursor.remove();
+      if (onDone) onDone();
+    }
+  }
+  type();
+}
+
+// ---------- TERMINAL ----------
+function generateErrors(count) {
+  const errors = [];
+  const now = new Date();
+  const codes = ['0x80070005','0x0000007B','0xC000021A','0x000000EF','0x00000133','0xDEADBEEF','0x80004005','0x0000000A','0x8007000E','0x0000001E'];
+  const msgs = ['CRITICAL_PROCESS_DIED','KERNEL_SECURITY_CHECK_FAILURE','MEMORY_MANAGEMENT','IRQL_NOT_LESS_OR_EQUAL','PAGE_FAULT_IN_NONPAGED_AREA','SYSTEM_SERVICE_EXCEPTION','DATA_BUS_ERROR','ACCESS_VIOLATION','STACK_BUFFER_OVERRUN','HEAP_CORRUPTION'];
+  for (let i = 0; i < count; i++) {
+    const ts = new Date(now.getTime() - Math.random() * 86400000);
+    const tsStr = ts.toISOString().replace('T', ' ').substring(0, 19);
+    errors.push({
+      ts: tsStr,
+      type: Math.random() > 0.5 ? 'ERROR' : 'FATAL',
+      code: codes[Math.floor(Math.random() * codes.length)],
+      msg: msgs[Math.floor(Math.random() * msgs.length)]
+    });
+  }
+  return errors;
+}
+
+function runTerminal() {
+  const terminal = document.getElementById('terminal-container');
+  const output = document.getElementById('terminal-output');
+  terminal.classList.add('active');
+  output.innerHTML = '';
+
+  const errors = generateErrors(100);
+  let i = 0;
+  const interval = 3000 / errors.length;
+
+  const timer = setInterval(() => {
+    if (i >= errors.length) { clearInterval(timer); return; }
+    const e = errors[i];
+    const line = document.createElement('div');
+    line.className = 'error-line';
+    line.innerHTML = `<span class="ts">[${e.ts}]</span> <span class="warn-line">${e.type}</span> ${e.code} — ${e.msg}`;
+    output.appendChild(line);
+    output.scrollTop = output.scrollHeight;
+    while (output.children.length > 30) output.removeChild(output.firstChild);
+    i++;
+  }, interval);
+}
+
+// ---------- ASCII ----------
+function showAsciiArt() {
+  const drawing = document.getElementById('drawing-container');
+  const pre = document.getElementById('ascii-art');
+  drawing.classList.add('active');
+  pre.textContent = `
+                    ..''''''..
+                .'            '.
+              .'    .--.  .--.  '.
+             /     ( o  )( o  )   \\
+            |       '--'  '--'     |
+            |    .            .    |
+            |     '..______..'     |
+             \\      |      |      /
+              '.    |  __  |    .'
+                '.  | /  \\ |  .'
+                  '.|/    \\|.'
+                   ||  /\\  ||
+                   || (  ) ||
+                   ||  \\/  ||
+                   ||      ||
+                  /||      ||\\
+                 / ||      || \\
+                /  ||      ||  \\
+               /   ||      ||   \\
+              /    ||      ||    \\
+             /     ||      ||     \\
+            |      ||      ||      |
+            |      ||      ||      |
+            |_____/||      ||\\_____|
+                 ( ||      || )
+                  \\||      ||/
+                   ||      ||
+                   ||      ||
+                   ||      ||
+                  _||_    _||_
+                 /____\\  /____\\
+  `;
+}
+
+// ---------- SCREAMER CANVAS ----------
+function drawScreamerFace() {
+  const canvas = document.getElementById('scream-canvas');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+
+  ctx.fillStyle = '#1a0000';
+  ctx.beginPath(); ctx.ellipse(w/2, h/2, 280, 360, 0, 0, Math.PI*2); ctx.fill();
+
+  const grad = ctx.createRadialGradient(w/2, h/2, 50, w/2, h/2, 350);
+  grad.addColorStop(0, '#8b0000'); grad.addColorStop(0.5, '#3d0000'); grad.addColorStop(1, '#0a0000');
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.ellipse(w/2, h/2, 270, 350, 0, 0, Math.PI*2); ctx.fill();
+
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.ellipse(w/2-110, h/2-80, 80, 100, -0.1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(w/2+110, h/2-80, 80, 100, 0.1, 0, Math.PI*2); ctx.fill();
+
+  ctx.fillStyle = '#ff0000';
+  ctx.beginPath(); ctx.arc(w/2-100, h/2-70, 20, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(w/2+100, h/2-70, 20, 0, Math.PI*2); ctx.fill();
+
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.ellipse(w/2, h/2+160, 100, 180, 0, 0, Math.PI*2); ctx.fill();
+
+  ctx.fillStyle = '#ddd';
+  for (let i = 0; i < 8; i++) {
+    const x = w/2 - 80 + i * 22;
+    ctx.fillRect(x, h/2+40, 16, 50);
+    ctx.fillRect(x, h/2+260, 16, 50);
+  }
+
+  ctx.fillStyle = '#8b0000';
+  for (let i = 0; i < 12; i++) {
+    ctx.fillRect(Math.random()*w, h/2+100+Math.random()*200, 3+Math.random()*4, 20+Math.random()*80);
+  }
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 50; i++) {
+    ctx.beginPath();
+    ctx.moveTo(Math.random()*w, Math.random()*h);
+    ctx.lineTo(Math.random()*w, Math.random()*h);
+    ctx.stroke();
+  }
+}
+
+// ---------- MAIN ----------
+const PHRASE = 'Лиза... я давно хотел тебе признаться.\n\nТы — самый светлый человек в моей жизни.\nКаждый день с тобой — как маленький праздник.\n\nСпасибо, что ты есть.';
+let started = false;
+
+function startSequence() {
+  if (started) return;
+  started = true;
+
+  const overlay = document.getElementById('start-overlay');
+  overlay.style.opacity = '0';
+  setTimeout(() => overlay.remove(), 1000);
+
+  animState.targetLid = 1;
+
+  setTimeout(() => {
+    const sheet = document.getElementById('sheet-container');
+    sheet.classList.add('visible');
+    typeText(document.getElementById('typed-text'), PHRASE, 50, () => {
+      setTimeout(triggerScreamer, 3000);
+    });
+  }, 1200);
+}
+
+function triggerScreamer() {
+  drawScreamerFace();
+  const screamer = document.getElementById('scream-overlay');
+  screamer.classList.add('active');
+  playScreamSound();
+
+  setTimeout(() => {
+    screamer.classList.remove('active');
+    runTerminal();
+
+    setTimeout(() => {
+      document.getElementById('terminal-container').classList.remove('active');
+      showAsciiArt();
+
+      setTimeout(() => {
+        document.getElementById('drawing-container').classList.remove('active');
+        document.getElementById('eye-overlay').classList.add('active');
+
+        setTimeout(() => {
+          document.getElementById('eye-overlay').classList.remove('active');
+          document.getElementById('locker-overlay').classList.add('active');
+
+          // играем твой трек
+          if (phonkAudio) {
+            phonkAudio.volume = 0.85;
+            phonkAudio.currentTime = 0;
+            phonkAudio.play().catch(() => {});
+          }
+        }, 3000);
+      }, 3000);
+    }, 3000);
+  }, 2000);
+}
+
+// ---------- BOOT ----------
+document.getElementById('start-overlay').addEventListener('click', () => {
+  initAudio();
+  preparePhonk();
+  initThree();
+  startSequence();
+});
+
+document.addEventListener('keydown', (e) => {
+  if ((e.code === 'Space' || e.code === 'Enter') && document.getElementById('start-overlay')) {
+    initAudio();
+    preparePhonk();
+    initThree();
+    startSequence();
+  }
+});
+</script>
+</body>
+</html>
